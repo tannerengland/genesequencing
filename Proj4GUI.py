@@ -46,8 +46,11 @@ class Proj4GUI( QMainWindow ):
 		start = time.time()
 
 		for i in range(len(sequences)):
+		# for i in [8]:
 			jresults = []
 			for j in range(len(sequences)):
+			# for j in [9]:
+
 				if(j < i):
 					s = {}
 				else:

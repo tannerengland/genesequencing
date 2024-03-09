@@ -39,37 +39,117 @@ class GeneSequencing:
 		if len(seq2) > align_length:
 			seq2 = seq2[:align_length]
 
+		swapped = False
 		if len(seq1) > len(seq2):
 			seq1, seq2 = seq2, seq1
+			swapped = True
 
 		if not banded:
-			score = self.NW(seq1, seq2)
+			score,alignment1,alignment2 = self.NW(seq1, seq2)
 		else:
-			score = self.NWB(seq1, seq2)
+			score,alignment1,alignment2 = self.NWB(seq1, seq2)
+
+		if swapped == True:
+			alignment1, alignment2 = alignment2, alignment1
 
 ###################################################################################################
 # your code should replace these three statements and populate the three variables: score, alignment1 and alignment2
 # 		score = random.random()*100;
-		alignment1 = 'abc-easy  DEBUG:({} chars,align_len={}{})'.format(
-			len(seq1), align_length, ',BANDED' if banded else '')
-		alignment2 = 'as-123--  DEBUG:({} chars,align_len={}{})'.format(
-			len(seq2), align_length, ',BANDED' if banded else '')
+# 		alignment1 = 'abc-easy  DEBUG:({} chars,align_len={}{})'.format(
+# 			len(seq1), align_length, ',BANDED' if banded else '')
+# 		alignment2 = 'as-123--  DEBUG:({} chars,align_len={}{})'.format(
+# 			len(seq2), align_length, ',BANDED' if banded else '')
 ###################################################################################################
+		# print(alignment1)
+		# print(alignment2)
 
 		return {'align_cost':score, 'seqi_first100':alignment1, 'seqj_first100':alignment2}
 
 	def NW(self, x, y):
+		Pointers =  [[0] * (len(y)+1) for _ in range(len(x)+1)]
 		E = [[0] * (len(y)+1) for _ in range(len(x)+1)]
 		for i in range(0, len(x)+1):
 			E[i][0] = i * INDEL
+			Pointers[i][0] = "n"
 		for j in range(0, len(y)+1):
 			E[0][j] = j * INDEL
+			Pointers[0][j] = "w"
 		for i in range(1, len(x)+1):
 			for j in range(1, len(y)+1):
-				E[i][j] = min(self.diff(i,j,x,y) + E[i-1][j-1], E[i][j-1] + INDEL, E[i-1][j] + INDEL)
-		return E[len(x)][len(y)]
+				west = E[i][j - 1] + INDEL
+				north = E[i - 1][j] + INDEL
+				northwest = self.diff(i, j, x, y) + E[i - 1][j - 1]
+				E[i][j] = min(northwest, west, north)
+# i indicates insert, d indicates delete, o indicates either match or sub
+				pointer = E[i][j]
+				if (pointer == west):
+					pointer = "w"
+				elif (pointer == north):
+					pointer = "n"
+				else:
+					pointer = "nw"
 
-		# northwest, west, north
+				Pointers[i][j] = pointer
+		# horizontal is insert by dash in x, diagnol match or sub by value, vertical delete dash in y
+
+		seq1,seq2 = self.align_characters(E,Pointers,x,y)
+		# E[i][j] = min(self.diff(i,j,x,y) + E[i-1][j-1], E[i][j-1] + INDEL, E[i-1][j] + INDEL)
+		return E[len(x)][len(y)],seq1,seq2
+
+	def align_characters(self,E,Pointers,x,y):
+		seqx = ""
+		seqy = ""
+
+		# for i in range(len(x)-1, -1, -1):
+		# 	for j in range(len(y)-1, -1, -1):
+		# 		west = E[i][j - 1] + INDEL
+		# 		north = E[i - 1][j] + INDEL
+		# 		northwest = E[i - 1][j - 1]
+		# 		minimum = min(west,north,northwest)
+		# 		if (minimum == north or minimum == northwest) and (west == north or west == northwest):
+		# 			minimum = west
+		# 		elif (minimum == northwest) and (north == northwest):
+		# 			minimum = north
+
+		i = len(x)
+		j = len(y)
+		while i > 0 or j > 0:
+			currPointer = Pointers[i][j]
+
+			# west = E[i][j - 1]
+			# north = E[i - 1][j]
+			# northwest = E[i - 1][j - 1]
+			# minimum = min(west,north,northwest)
+			# if (minimum == north and north == west) or (minimum == northwest and northwest == west):
+			# 	minimum = west
+			# elif (minimum == northwest and north == northwest):
+			# 	minimum = north
+
+			if currPointer == "w":
+				seqx += "-"
+				seqy += y[j-1]
+				# seqx += x[i-1]
+				# seqy += "-"
+				j = j - 1
+			elif currPointer == "n":
+				seqx += x[i-1]
+				seqy += "-"
+				# seqx += "-"
+				# seqy += y[j-1]
+				i = i - 1
+			elif currPointer == "nw":
+				seqx += x[i-1]
+				seqy += y[j-1]
+				i = i - 1
+				j = j - 1
+
+		seqx = seqx[::-1]
+		seqy = seqy[::-1]
+		return seqx,seqy
+
+	# horizontal is insert by dash in x, diagnol match or sub by value, vertical delete dash in y
+
+	# northwest, west, north
 
 	def NWB(self, x, y):
 		bandwidth = MAXINDELS * 2 + 1
@@ -83,14 +163,14 @@ class GeneSequencing:
 			for col in range(0, bandwidth):
 				# if (j <= (i + MAXINDELS)) and (j >= (i - MAXINDELS)):
 				currIndex = row - MAXINDELS + col
-				diffIndex = col - math.ceil(bandwidth/2)
-				if currIndex >= 0:
+				diffIndex = col - MAXINDELS + row
+				if currIndex >= 0 and currIndex <= len(y):
 					# if row - 1 >= 0 and col - 1 >= 0 and col + 1 <= bandwidth-1:
 					west = float('inf')
 					north = float('inf')
 					northwest = float('inf')
 
-					if row - 1 >= 0:
+					if row - 1 >= 0 and diffIndex <= len(y):
 						northwest = self.diff(row,diffIndex,x,y) + E[row-1][col]
 
 					if col - 1 >= 0:
@@ -101,7 +181,15 @@ class GeneSequencing:
 
 					# E[row][col] = min(self.diff(row,currIndex,x,y) + E[row-1][col], E[row][col-1] + INDEL, E[row-1][col+1] + INDEL)
 					E[row][col] = min(west,north,northwest)
-		return E[len(x)][math.floor(bandwidth/2)]
+
+
+		last_non_inf_index = None
+		for i in range(len(E[len(x)]) - 1, -1, -1):
+			if E[len(x)][i] != float('inf'):
+				last_non_inf_index = i
+				break
+
+		return E[len(x)][last_non_inf_index]
 
 
 	def diff(self,i,j,x,y):
