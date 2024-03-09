@@ -44,7 +44,7 @@ class GeneSequencing:
 			seq1, seq2 = seq2, seq1
 			swapped = True
 
-		if len(seq1) > 2*len(seq2) or 2*len(seq1) < len(seq2):
+		if (len(seq2) - len(seq1)) > (MAXINDELS * 2 + 1):
 			score = float('inf')
 			alignment1 = "No Alignment Possible."
 			alignment2 = "No Alignment Possible."
