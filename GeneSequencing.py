@@ -44,10 +44,15 @@ class GeneSequencing:
 			seq1, seq2 = seq2, seq1
 			swapped = True
 
-		if not banded:
-			score,alignment1,alignment2 = self.NW(seq1, seq2)
+		if len(seq1) > 2*len(seq2) or 2*len(seq1) < len(seq2):
+			score = float('inf')
+			alignment1 = "No Alignment Possible."
+			alignment2 = "No Alignment Possible."
 		else:
-			score,alignment1,alignment2 = self.NWB(seq1, seq2)
+			if not banded:
+				score,alignment1,alignment2 = self.NW(seq1, seq2)
+			else:
+				score,alignment1,alignment2 = self.NWB(seq1, seq2)
 
 		if swapped == True:
 			alignment1, alignment2 = alignment2, alignment1
@@ -63,7 +68,7 @@ class GeneSequencing:
 		# print(alignment1)
 		# print(alignment2)
 
-		return {'align_cost':score, 'seqi_first100':alignment1, 'seqj_first100':alignment2}
+		return {'align_cost':score, 'seqi_first100':alignment1[:100], 'seqj_first100':alignment2[:100]}
 
 	def NW(self, x, y):
 		Pointers =  [[0] * (len(y)+1) for _ in range(len(x)+1)]
@@ -92,50 +97,26 @@ class GeneSequencing:
 				Pointers[i][j] = pointer
 		# horizontal is insert by dash in x, diagnol match or sub by value, vertical delete dash in y
 
-		seq1,seq2 = self.align_characters(E,Pointers,x,y)
+		seq1,seq2 = self.align_characters(Pointers,x,y)
 		# E[i][j] = min(self.diff(i,j,x,y) + E[i-1][j-1], E[i][j-1] + INDEL, E[i-1][j] + INDEL)
 		return E[len(x)][len(y)],seq1,seq2
 
-	def align_characters(self,E,Pointers,x,y):
+	def align_characters(self,Pointers,x,y):
 		seqx = ""
 		seqy = ""
-
-		# for i in range(len(x)-1, -1, -1):
-		# 	for j in range(len(y)-1, -1, -1):
-		# 		west = E[i][j - 1] + INDEL
-		# 		north = E[i - 1][j] + INDEL
-		# 		northwest = E[i - 1][j - 1]
-		# 		minimum = min(west,north,northwest)
-		# 		if (minimum == north or minimum == northwest) and (west == north or west == northwest):
-		# 			minimum = west
-		# 		elif (minimum == northwest) and (north == northwest):
-		# 			minimum = north
 
 		i = len(x)
 		j = len(y)
 		while i > 0 or j > 0:
 			currPointer = Pointers[i][j]
 
-			# west = E[i][j - 1]
-			# north = E[i - 1][j]
-			# northwest = E[i - 1][j - 1]
-			# minimum = min(west,north,northwest)
-			# if (minimum == north and north == west) or (minimum == northwest and northwest == west):
-			# 	minimum = west
-			# elif (minimum == northwest and north == northwest):
-			# 	minimum = north
-
 			if currPointer == "w":
 				seqx += "-"
 				seqy += y[j-1]
-				# seqx += x[i-1]
-				# seqy += "-"
 				j = j - 1
 			elif currPointer == "n":
 				seqx += x[i-1]
 				seqy += "-"
-				# seqx += "-"
-				# seqy += y[j-1]
 				i = i - 1
 			elif currPointer == "nw":
 				seqx += x[i-1]
@@ -153,12 +134,16 @@ class GeneSequencing:
 
 	def NWB(self, x, y):
 		bandwidth = MAXINDELS * 2 + 1
+
+		Pointers =  [[0] * (bandwidth) for _ in range(len(x)+1)]
 		E = [[float('inf')] * (bandwidth) for _ in range(len(x)+1)]
 
 		for col in range(0, MAXINDELS + 1):
 			E[col][MAXINDELS - col] = col * INDEL
+			Pointers[col][MAXINDELS - col] = "n"
 		for row in range(0, MAXINDELS + 1):
 			E[0][MAXINDELS + row] = row * INDEL
+			Pointers[0][MAXINDELS + row] = "w"
 		for row in range(1, len(x)+1):
 			for col in range(0, bandwidth):
 				# if (j <= (i + MAXINDELS)) and (j >= (i - MAXINDELS)):
@@ -182,6 +167,15 @@ class GeneSequencing:
 					# E[row][col] = min(self.diff(row,currIndex,x,y) + E[row-1][col], E[row][col-1] + INDEL, E[row-1][col+1] + INDEL)
 					E[row][col] = min(west,north,northwest)
 
+					pointer = E[row][col]
+					if (pointer == west):
+						pointer = "w"
+					elif (pointer == north):
+						pointer = "n"
+					else:
+						pointer = "nw"
+
+					Pointers[row][col] = pointer
 
 		last_non_inf_index = None
 		for i in range(len(E[len(x)]) - 1, -1, -1):
@@ -189,7 +183,38 @@ class GeneSequencing:
 				last_non_inf_index = i
 				break
 
-		return E[len(x)][last_non_inf_index]
+		seq1,seq2 = self.align_characters_banded(Pointers,x,y,last_non_inf_index)
+		return E[len(x)][last_non_inf_index],seq1,seq2
+
+	def align_characters_banded(self,Pointers,x,y,last_non_inf_index):
+		seqx = ""
+		seqy = ""
+		i = len(x)
+		j = last_non_inf_index
+		currIndex = i - MAXINDELS + j
+		while currIndex > 1 and currIndex <= len(y):
+			currIndex = i - MAXINDELS + j
+			diffIndex = j - MAXINDELS + i
+			# if currIndex >= 0 and currIndex <= len(y):
+			currPointer = Pointers[i][j]
+
+			if currPointer == "w":
+				seqx += "-"
+				seqy += y[diffIndex-1]
+				j = j - 1
+			elif currPointer == "n":
+				seqx += x[i-1]
+				seqy += "-"
+				i = i - 1
+				j = j + 1
+			elif currPointer == "nw":
+				seqx += x[i-1]
+				seqy += y[diffIndex-1]
+				i = i - 1
+
+		seqx = seqx[::-1]
+		seqy = seqy[::-1]
+		return seqx,seqy
 
 
 	def diff(self,i,j,x,y):
