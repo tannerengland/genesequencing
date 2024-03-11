@@ -44,13 +44,14 @@ class GeneSequencing:
 			seq1, seq2 = seq2, seq1
 			swapped = True
 
-		if (len(seq2) - len(seq1)) > (MAXINDELS * 2 + 1):
-			score = float('inf')
-			alignment1 = "No Alignment Possible."
-			alignment2 = "No Alignment Possible."
+
+		if not banded:
+			score,alignment1,alignment2 = self.NW(seq1, seq2)
 		else:
-			if not banded:
-				score,alignment1,alignment2 = self.NW(seq1, seq2)
+			if (len(seq2) - len(seq1)) > (MAXINDELS * 2 + 1):
+				score = float('inf')
+				alignment1 = "No Alignment Possible."
+				alignment2 = "No Alignment Possible."
 			else:
 				score,alignment1,alignment2 = self.NWB(seq1, seq2)
 
@@ -192,7 +193,8 @@ class GeneSequencing:
 		i = len(x)
 		j = last_non_inf_index
 		currIndex = i - MAXINDELS + j
-		while currIndex > 1 and currIndex <= len(y):
+		# while currIndex > 1 and currIndex <= len(y):
+		while i > 0 or j != MAXINDELS:
 			currIndex = i - MAXINDELS + j
 			diffIndex = j - MAXINDELS + i
 			# if currIndex >= 0 and currIndex <= len(y):
